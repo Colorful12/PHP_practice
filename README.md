@@ -1,2 +1,2 @@
-# PHP_practice
+# php_practice
 phpを使えるようになりたい
