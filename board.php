@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <head>
     <meta chartype="utf-8"/>
-    <title>mission3-03</title>
+    <title>mission3-05</title>
     <style>
         body{
             margin:10% 20%;
@@ -58,6 +58,7 @@
                 $newpost[$linenum]=$nowline.PHP_EOL;
         }
         }
+        echo "<br><br><br>";
         $fp = fopen($filename, "w");
         foreach($newpost as $line){
             $check = fwrite($fp, $line);
