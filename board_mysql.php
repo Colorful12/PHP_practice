@@ -12,7 +12,7 @@
     <?php 
     $filename = "mission5-01.txt";
     
-    $pdo = new PDO(セキュリティの関係で削除しています);
+    $pdo = new PDO("mysql:dbname=tb231074db; host=localhost", "tb-231074", "rUrp8BEX63", array(PDO::ATTR_ERRMODE => PDO::ERRMODE_WARNING));
     $sql ="CREATE TABLE IF NOT EXISTS posts(
     num INT UNSIGNED PRIMARY KEY,
     name VARCHAR(32) NOT NULL,
@@ -49,7 +49,7 @@
     }
     
     //ファイルを読み込む関数
-    function readfiles($filename, $needbr){
+    function readfiles_before($filename, $needbr){
         global $pdo;
         
         $fp = fopen($filename, "a");
@@ -58,20 +58,32 @@
         return $lines;
     }
     
+    function readfiles($pdo, $needbr){
+        $stmt = $pdo -> query("SELECT * FROM posts");
+        $lines = $stmt -> fetchAll();
+        if($needbr) echo "<br><br><br>";
+        return $lines;
+    }
+    
     // 編集対象のデータ一式の取得
+    //多分ok...?
     function geteditline($editnum){
         global $filename, $pdo;
-        $lines = file($filename, FILE_IGNORE_NEW_LINES);
-        if(empty($lines)|| count($lines)<$editnum || $editnum<=0) $editline = "";
-        else{        
-            foreach($lines as $line){
-                $linenum = explode("<>", $line)[0];
-                if($linenum==$editnum){
-                    $editline = $line;
-                }
-            }
-        }
-        return $editline;
+        $stmt = $pdo -> prepare("SELECT * FROM posts WHERE num=:num");
+        $stmt -> bindParam(":num", $editnum);
+        $stmt -> execute();
+        $editline = $stmt -> fetchAll();
+        //$lines = file($filename, FILE_IGNORE_NEW_LINES);
+        //if(empty($lines)|| count($lines)<$editnum || $editnum<=0) $editline = "";
+        //else{        
+         //   foreach($lines as $line){
+          //      $linenum = explode("<>", $line)[0];
+        //        if($linenum==$editnum){
+         //           $editline = $line;
+          //      }
+        //    }
+        //}
+        return $editline[0];
     }
     
     // 新規投稿の追加
@@ -103,7 +115,7 @@
     }
     
     // 投稿の編集
-    function edittext($name, $text, $time, $editnum, $pass){
+    function edittext_before($name, $text, $time, $editnum, $pass){
         global $filename, $save;
         $newpost = array();
         $lines = file($filename, FILE_IGNORE_NEW_LINES);
@@ -123,6 +135,32 @@
             $check = fwrite($fp, $line);
             if(!$check) echo "書き込み失敗.<br>";
         }
+    }
+    function insert($num, $name, $text, $time, $pass){
+        global $pdo;
+        
+        $sql = $pdo -> prepare("INSERT INTO posts (num, name, comment, date, password) VALUES (:num, :name, :comment, :date, :password)");
+        $sql -> bindParam(":num", $num);
+        $sql -> bindParam(":name", $name);
+        $sql -> bindParam(":comment", $text);
+        $sql -> bindParam(":date", $time);
+        $sql -> bindParam(":password", $pass);
+        $sql -> execute();
+    }
+    
+    function edittext($name, $text, $time, $editnum, $pass){
+        global $pdo;
+        $stmt = $pdo -> query("SELECT * FROM posts");
+        $lines = $stmt -> fetchAll();
+        $stmt = $pdo->query("DROP TABLE posts");
+        preparetable();
+        
+        foreach($lines as $line){
+            $linenum = $line["num"];
+            if($linenum==$editnum) insert($linenum, $name, $text, $time, $pass);
+            else insert($line["num"], $line["name"], $line["comment"], $line["date"], $line["password"]);
+        }
+        echo "<br><br><br>";
     }
     
     function treatform(){
@@ -208,20 +246,22 @@
                 
         }elseif(isset($_POST["enum"])){
             $editnum=$_POST["enum"];
-            $fp = fopen($filename,"a");
-            $lines = file($filename, FILE_IGNORE_NEW_LINES);
-            fclose($fp);
+            preparetable();
+            //$fp = fopen($filename,"a");
+            $stmt = $pdo -> query("SELECT * FROM posts");
+            $lines = $stmt -> fetchAll();
+            //$lines = file($filename, FILE_IGNORE_NEW_LINES);
+            //fclose($fp);
             if(empty($editnum)||empty($lines)|| count($lines)<$editnum || $editnum<=0) echo "その番号は存在しません.";
             else{
                //パスワードが違ったらそれを画面にだすとかの処理
             }
-            $lines = readfiles($filename, 1);
-            foreach($lines as $line) echo $line."<br>";
-                
+            $lines = readfiles($pdo, 1);
+            foreach($lines as $line) echo $line["num"]."<>".$line["name"]."<>".$line["comment"]."<>".$line["date"]."<br>";
             }
         else{
-            $lines = readfiles($filename, 1);
-            foreach($lines as $line) echo $line."<br>";
+            $lines = readfiles($pdo, 1);
+            foreach($lines as $line) echo $line["num"]."<>".$line["name"]."<>".$line["comment"]."<>".$line["date"]."<br>";
         }
     }
         
@@ -230,24 +270,26 @@
             $epass = $_POST["epass"];
             $checkform = 0;
             if(!empty($epass)&&!empty($_POST["enum"])){
-                $fp = fopen($filename,"a");
-                $lines = file($filename, FILE_IGNORE_NEW_LINES);
-                fclose($fp);
+                preparetable();
+                $lines = readfiles($pdo, 0);
+                //fclose($fp);
                 
                 $checkform = 1;
                 $editline = geteditline($_POST["enum"]);
-                
-                $explode = explode("<>", $editline);
-                $truepass = $explode[count($explode)-2];
-                
+                //$explode = explode("<>", $editline);
+                //$truepass = $explode[count($explode)-2];
+                $truepass = $editline["password"];
                 if(empty($epass)) $checkform = 0;
                 else if($truepass!=$epass) $checkform = 0;
                 else{
                     if(empty($editline)) $checkform = 0;
                     else{
-                        $editnum =explode("<>", $editline)[0];
-                        $ename = explode("<>", $editline)[1];
-                        $etext = explode("<>", $editline)[2];                    
+                        //$editnum =explode("<>", $editline)[0];
+                        //$ename = explode("<>", $editline)[1];
+                        //$etext = explode("<>", $editline)[2];
+                        $editnum =$editline["num"];
+                        $ename = $editline["name"];
+                        $etext = $editline["comment"];                    
                     }
                 }
             }    
