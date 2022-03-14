@@ -23,7 +23,6 @@
 
     $pdo -> query($sql);
     
-    #ok
     function post_to_table($num, $name, $text, $time, $pass){
         global $pdo;
         $save = $pdo -> prepare("INSERT INTO posts (num, name, comment, date, password) VALUES (:num, :name, :comment, :date, :password)");
@@ -35,7 +34,6 @@
         $save -> execute();
     }
        
-    #ok 
     function preparetable(){
         global $pdo;
         $sql ="CREATE TABLE IF NOT EXISTS posts(
@@ -49,16 +47,8 @@
     }
     
     //ファイルを読み込む関数
-    function readfiles_before($filename, $needbr){
-        global $pdo;
-        
-        $fp = fopen($filename, "a");
-        $lines = file($filename, FILE_IGNORE_NEW_LINES);
-        if($needbr) echo "<br><br><br>";
-        return $lines;
-    }
-    
     function readfiles($pdo, $needbr){
+        preparetable();
         $stmt = $pdo -> query("SELECT * FROM posts");
         $lines = $stmt -> fetchAll();
         if($needbr) echo "<br><br><br>";
@@ -66,7 +56,6 @@
     }
     
     // 編集対象のデータ一式の取得
-    //ok
     function geteditline($editnum){
         global $filename, $pdo;
         $stmt = $pdo -> prepare("SELECT * FROM posts WHERE num=:num");
@@ -77,7 +66,6 @@
     }
     
     // 新規投稿の追加
-    // ok
     function addnewtext($name, $text, $time, $pass){
         global $filename, $pdo;
         preparetable();
@@ -95,29 +83,6 @@
         echo "投稿しました.<br><br><br>";
     }
     
-    // 投稿の編集
-    function edittext_before($name, $text, $time, $editnum, $pass){
-        global $filename, $save;
-        $newpost = array();
-        $lines = file($filename, FILE_IGNORE_NEW_LINES);
-        foreach($lines as $line){
-            $nowline = $line;
-            $explode = explode("<>", $line);
-            $linenum = $explode[0];
-            if($linenum==$editnum){
-                $newpost[$linenum] = $linenum."<>".$name."<>".$text."<>".$time."<>".$pass."<>".PHP_EOL;
-            }else {
-                $newpost[$linenum]=$nowline.PHP_EOL;
-        }
-        }
-        echo "<br><br><br>";
-        $fp = fopen($filename, "w");
-        foreach($newpost as $line){
-            $check = fwrite($fp, $line);
-            if(!$check) echo "書き込み失敗.<br>";
-        }
-    }
-    
     // コメントの挿入
     function insert($num, $name, $text, $time, $pass){
         global $pdo;
@@ -130,6 +95,7 @@
         $sql -> bindParam(":password", $pass);
         $sql -> execute();
     }
+    
     
     function edittext($name, $text, $time, $editnum, $pass){
         global $pdo;
@@ -179,49 +145,41 @@
             $delnum = $_POST["dnum"];
             $dpass = $_POST["dpass"];
             
-            $lines = readfiles($filename, 0);
+            $lines = readfiles($pdo, 0);
             if(empty($lines)) echo "掲示板は既に空です. <br>";
             elseif(count($lines)<$delnum || $delnum<=0) {
                 echo "その番号は存在しません.";
-                $lines = readfiles($filename, 1);
-                foreach($lines as $line) echo $line."<br>";
+                $lines = readfiles($pdo, 1);
+                foreach($lines as $line) echo $line["num"]."<>".$line["name"]."<>".$line["comment"]."<>".$line["date"]."<br>";
             }elseif(empty($dpass)){
                 echo "パスワードを入力してください.";
-                $lines = readfiles($filename, 1);
-                foreach($lines as $line) echo $line."<br>";
+                $lines = readfiles($pdo, 1);
+                foreach($lines as $line) $line["num"]."<>".$line["name"]."<>".$line["comment"]."<>".$line["date"]."<br>";
             }else{
-                $newpost = array();
+                $stmt = $pdo->query("DROP TABLE posts");
+                preparetable();
                 $i = 0;
                 $deldone = false;
                 foreach($lines as $line){
-                    $explode = explode("<>", $line);
-                    $linenum = $explode[0];
+                    $linenum = $line["num"];
                     if($linenum!=$delnum){
                         if($deldone){
-                            $line = explode("<>", $line);
-                            $line[0] = $i;
-                            $newpost[$i] = $line[0]."<>".$line[1]."<>".$line[2]."<>".$line[3]."<>".$line[4]."<>".PHP_EOL;
+                            insert($i, $line["name"], $line["comment"], $line["date"], $line["password"]);
                         }else{
-                            $newpost[$i] = $line.PHP_EOL;
+                            insert($line["num"], $line["name"], $line["comment"], $line["date"], $line["password"]);
                         }
                         $i++;
                     }else {
-                        $truepass = $explode[count($explode)-2];
+                        $truepass = $line["password"];
                         if($truepass!=$dpass){
                             echo "パスワードが違います. やりなおしてください.>";
-                            $newpost[$i] = $line.PHP_EOL;
+                            insert($line["num"], $line["name"], $line["comment"], $line["date"], $line["password"]);
                         }else $deldone = true;
                         $i++;
                     }
                 }
-                //ファイルに書き込む
-                $fp = fopen($filename, "w");
-                foreach($newpost as $line){
-                    $check = fwrite($fp, $line);
-                    if(!$check) echo "書き込み失敗.<br>";
-                }
-                $lines = readfiles($filename, 1);
-                foreach($lines as $line) echo $line."<br>";
+                $lines = readfiles($pdo, 1);
+                foreach($lines as $line) echo $line["num"]."<>".$line["name"]."<>".$line["comment"]."<>".$line["date"]."<br>";
                 
             }
                 
